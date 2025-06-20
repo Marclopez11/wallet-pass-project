@@ -61,8 +61,7 @@ class WalletPassController extends Controller
 
         // Crear el pase premium con diseño profesional y colores
         $eventPass = GenericPassBuilder::make([
-            // COLORES PREMIUM - Fondo blanco a rojo
-            'backgroundColor' => '#ffffff', // Fondo blanco
+            // COLORES PREMIUM - Sin backgroundColor para que se vea la imagen de fondo
             'foregroundColor' => '#000000', // Texto negro
             'labelColor' => '#c00001', // Rojo para labels
             // QR CODE - Añadir directamente en la configuración
@@ -71,6 +70,13 @@ class WalletPassController extends Controller
                 'message' => $qrData,
                 'messageEncoding' => 'utf-8'
             ]
+        ], [
+            // IMÁGENES - Agregar imagen strip (fondo detrás de los campos)
+            'strip' => Image::make(
+                x1Path: public_path('images/premium/strip.png'),
+                x2Path: public_path('images/premium/strip@2x.png'),
+                x3Path: public_path('images/premium/strip@3x.png')
+            )
         ])
             ->setOrganisationName('PREMIUM EVENTS')
             ->setSerialNumber($serialNumber)
@@ -285,11 +291,12 @@ class WalletPassController extends Controller
 
             $image = imagecreatetruecolor($width, $height);
 
-            // Crear gradiente vertical de blanco a #c00001
+            // Crear gradiente vertical más suave de blanco a #c00001
             for ($y = 0; $y < $height; $y++) {
                 $ratio = $y / $height;
 
                 // Gradiente de blanco (255,255,255) a rojo (#c00001 = 192,0,1)
+                // Usar una transición más suave
                 $r = (int)(255 * (1 - $ratio) + 192 * $ratio);
                 $g = (int)(255 * (1 - $ratio) + 0 * $ratio);
                 $b = (int)(255 * (1 - $ratio) + 1 * $ratio);
