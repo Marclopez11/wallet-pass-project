@@ -56,11 +56,20 @@ class WalletPassController extends Controller
         $horaFormateada = $this->formatearHoraModerna($validated['hora']);
         $fechaCompleta = $this->formatearFechaCompleta($validated['fecha']);
 
-        // Crear el pase premium con diseño profesional
-        $eventPass = GenericPassBuilder::make()
+        // Crear imágenes de fondo premium
+        $this->generarImagenesPremium();
+
+        // Crear el pase premium con diseño profesional y colores
+        $eventPass = GenericPassBuilder::make([
+            // COLORES PREMIUM - Fondo degradado oscuro elegante
+            'backgroundColor' => '#1a1a2e', // Azul oscuro premium
+            'foregroundColor' => '#ffffff', // Texto blanco
+            'labelColor' => '#e94560', // Rosa/rojo premium para labels
+        ])
             ->setOrganisationName('PREMIUM EVENTS')
             ->setSerialNumber($serialNumber)
             ->setDescription($validated['nombre'])
+            // HEADER FIELDS - Información superior
             ->setHeaderFields(
                 FieldContent::make('tier-status')
                     ->withLabel('✨ TIER')
@@ -69,11 +78,13 @@ class WalletPassController extends Controller
                     ->withLabel('🚪 GATE')
                     ->withValue('MAIN ENTRANCE')
             )
+            // PRIMARY FIELD - Título principal grande
             ->setPrimaryFields(
                 FieldContent::make('event-title')
                     ->withLabel('🎯 EVENT')
                     ->withValue($this->formatearTituloEvento($validated['nombre']))
             )
+            // SECONDARY FIELDS - Información importante
             ->setSecondaryFields(
                 FieldContent::make('event-date')
                     ->withLabel('📅 DATE')
@@ -85,6 +96,7 @@ class WalletPassController extends Controller
                     ->withLabel('🔓 DOORS')
                     ->withValue($this->calcularHoraPuertas($validated['hora']))
             )
+            // AUXILIARY FIELDS - Información adicional
             ->setAuxiliaryFields(
                 FieldContent::make('venue-name')
                     ->withLabel('📍 VENUE')
@@ -93,6 +105,7 @@ class WalletPassController extends Controller
                     ->withLabel('🎫 ID')
                     ->withValue($serialNumber)
             )
+            // BACK FIELDS - Información del reverso
             ->setBackFields(
                 FieldContent::make('event-overview')
                     ->withLabel('📋 Event Overview')
@@ -130,12 +143,19 @@ class WalletPassController extends Controller
                     ->withLabel('📱 Connect With Us')
                     ->withValue($this->generarRedesSociales($validated['nombre']))
             )
-
+            // IMÁGENES PREMIUM
             ->setIconImage(
                 Image::make(
                     x1Path: public_path('images/icons/icon.png'),
                     x2Path: public_path('images/icons/icon@2x.png'),
                     x3Path: public_path('images/icons/icon@3x.png')
+                )
+            )
+            ->setLogoImage(
+                Image::make(
+                    x1Path: public_path('images/premium/logo.png'),
+                    x2Path: public_path('images/premium/logo@2x.png'),
+                    x3Path: public_path('images/premium/logo@3x.png')
                 )
             )
             ->save();
@@ -144,6 +164,182 @@ class WalletPassController extends Controller
         $fileName = 'premium-event-' . strtolower(str_replace([' ', '&', 'á', 'é', 'í', 'ó', 'ú', 'ñ'], ['-', 'and', 'a', 'e', 'i', 'o', 'u', 'n'], $validated['nombre'])) . '-' . date('Y-m-d');
 
         return $eventPass->download($fileName);
+    }
+
+    /**
+     * Generar imágenes premium para el pase
+     */
+    private function generarImagenesPremium()
+    {
+        // Crear directorio si no existe
+        $premiumDir = public_path('images/premium');
+        if (!file_exists($premiumDir)) {
+            mkdir($premiumDir, 0755, true);
+        }
+
+        // Generar logo premium
+        $this->generarLogoPremium();
+
+        // Generar fondo premium
+        $this->generarFondoPremium();
+
+        // Generar strip premium
+        $this->generarStripPremium();
+    }
+
+    /**
+     * Generar logo premium
+     */
+    private function generarLogoPremium()
+    {
+        $logoSizes = [
+            ['width' => 160, 'height' => 50, 'suffix' => ''],
+            ['width' => 320, 'height' => 100, 'suffix' => '@2x'],
+            ['width' => 480, 'height' => 150, 'suffix' => '@3x']
+        ];
+
+        foreach ($logoSizes as $size) {
+            $width = $size['width'];
+            $height = $size['height'];
+            $suffix = $size['suffix'];
+
+            // Crear imagen con fondo transparente
+            $image = imagecreatetruecolor($width, $height);
+
+            // Hacer fondo transparente
+            imagesavealpha($image, true);
+            $transparent = imagecolorallocatealpha($image, 0, 0, 0, 127);
+            imagefill($image, 0, 0, $transparent);
+
+            // Colores premium
+            $white = imagecolorallocate($image, 255, 255, 255);
+            $premium = imagecolorallocate($image, 233, 69, 96); // Rosa premium
+            $gold = imagecolorallocate($image, 255, 215, 0); // Dorado
+
+            // Crear diseño del logo
+            $centerX = $width / 2;
+            $centerY = $height / 2;
+
+            // Círculo de fondo
+            $circleRadius = min($width, $height) * 0.3;
+            imagefilledellipse($image, $centerX, $centerY, $circleRadius * 2, $circleRadius * 2, $premium);
+
+            // Borde dorado
+            imageellipse($image, $centerX, $centerY, $circleRadius * 2, $circleRadius * 2, $gold);
+            imageellipse($image, $centerX, $centerY, ($circleRadius * 2) - 2, ($circleRadius * 2) - 2, $gold);
+
+            // Texto "PE" (Premium Events)
+            $fontSize = $width * 0.08;
+            if (function_exists('imagettftext')) {
+                // Si tenemos fuentes TTF disponibles
+                $fontPath = public_path('fonts/arial.ttf');
+                if (file_exists($fontPath)) {
+                    imagettftext($image, $fontSize, 0, $centerX - ($fontSize * 0.6), $centerY + ($fontSize * 0.3), $white, $fontPath, 'PE');
+                } else {
+                    // Usar fuente built-in
+                    imagestring($image, 5, $centerX - 15, $centerY - 10, 'PE', $white);
+                }
+            } else {
+                imagestring($image, 5, $centerX - 15, $centerY - 10, 'PE', $white);
+            }
+
+            // Guardar imagen
+            $filename = public_path("images/premium/logo{$suffix}.png");
+            imagepng($image, $filename);
+            imagedestroy($image);
+        }
+    }
+
+    /**
+     * Generar fondo premium con gradiente
+     */
+    private function generarFondoPremium()
+    {
+        $backgroundSizes = [
+            ['width' => 180, 'height' => 220, 'suffix' => ''],
+            ['width' => 360, 'height' => 440, 'suffix' => '@2x'],
+            ['width' => 540, 'height' => 660, 'suffix' => '@3x']
+        ];
+
+        foreach ($backgroundSizes as $size) {
+            $width = $size['width'];
+            $height = $size['height'];
+            $suffix = $size['suffix'];
+
+            $image = imagecreatetruecolor($width, $height);
+
+            // Crear gradiente premium (azul oscuro a negro)
+            for ($y = 0; $y < $height; $y++) {
+                $ratio = $y / $height;
+
+                // Colores del gradiente
+                $r = (int)(26 * (1 - $ratio) + 0 * $ratio); // De azul oscuro a negro
+                $g = (int)(26 * (1 - $ratio) + 0 * $ratio);
+                $b = (int)(46 * (1 - $ratio) + 0 * $ratio);
+
+                $color = imagecolorallocate($image, $r, $g, $b);
+                imageline($image, 0, $y, $width, $y, $color);
+            }
+
+            // Añadir patrón sutil
+            $patternColor = imagecolorallocatealpha($image, 255, 255, 255, 120);
+            for ($x = 0; $x < $width; $x += 20) {
+                for ($y = 0; $y < $height; $y += 20) {
+                    imagesetpixel($image, $x, $y, $patternColor);
+                }
+            }
+
+            // Guardar imagen
+            $filename = public_path("images/premium/background{$suffix}.png");
+            imagepng($image, $filename);
+            imagedestroy($image);
+        }
+    }
+
+    /**
+     * Generar strip premium (banda central)
+     */
+    private function generarStripPremium()
+    {
+        $stripSizes = [
+            ['width' => 375, 'height' => 123, 'suffix' => ''],
+            ['width' => 750, 'height' => 246, 'suffix' => '@2x'],
+            ['width' => 1125, 'height' => 369, 'suffix' => '@3x']
+        ];
+
+        foreach ($stripSizes as $size) {
+            $width = $size['width'];
+            $height = $size['height'];
+            $suffix = $size['suffix'];
+
+            $image = imagecreatetruecolor($width, $height);
+
+            // Gradiente horizontal premium (rosa a azul)
+            for ($x = 0; $x < $width; $x++) {
+                $ratio = $x / $width;
+
+                // Gradiente de rosa premium a azul
+                $r = (int)(233 * (1 - $ratio) + 79 * $ratio);
+                $g = (int)(69 * (1 - $ratio) + 172 * $ratio);
+                $b = (int)(96 * (1 - $ratio) + 254 * $ratio);
+
+                $color = imagecolorallocate($image, $r, $g, $b);
+                imageline($image, $x, 0, $x, $height, $color);
+            }
+
+            // Añadir overlay con patrón geométrico
+            $overlayColor = imagecolorallocatealpha($image, 255, 255, 255, 100);
+
+            // Patrón de líneas diagonales
+            for ($i = -$height; $i < $width; $i += 15) {
+                imageline($image, $i, 0, $i + $height, $height, $overlayColor);
+            }
+
+            // Guardar imagen
+            $filename = public_path("images/premium/strip{$suffix}.png");
+            imagepng($image, $filename);
+            imagedestroy($image);
+        }
     }
 
     /**
