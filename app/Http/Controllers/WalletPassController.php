@@ -56,15 +56,21 @@ class WalletPassController extends Controller
         $horaFormateada = $this->formatearHoraModerna($validated['hora']);
         $fechaCompleta = $this->formatearFechaCompleta($validated['fecha']);
 
-        // Crear imágenes de fondo premium
-        $this->generarImagenesPremium();
+        // Crear imágenes de fondo premium estáticas si no existen
+        $this->crearImagenesEstaticasSiNoExisten();
 
         // Crear el pase premium con diseño profesional y colores
         $eventPass = GenericPassBuilder::make([
-            // COLORES PREMIUM - Fondo degradado oscuro elegante
-            'backgroundColor' => '#1a1a2e', // Azul oscuro premium
-            'foregroundColor' => '#ffffff', // Texto blanco
-            'labelColor' => '#e94560', // Rosa/rojo premium para labels
+            // COLORES PREMIUM - Fondo blanco a rojo
+            'backgroundColor' => '#ffffff', // Fondo blanco
+            'foregroundColor' => '#000000', // Texto negro
+            'labelColor' => '#c00001', // Rojo para labels
+            // QR CODE - Añadir directamente en la configuración
+            'barcode' => [
+                'format' => BarcodeType::QR->value,
+                'message' => $qrData,
+                'messageEncoding' => 'utf-8'
+            ]
         ])
             ->setOrganisationName('PREMIUM EVENTS')
             ->setSerialNumber($serialNumber)
@@ -72,78 +78,69 @@ class WalletPassController extends Controller
             // HEADER FIELDS - Información superior
             ->setHeaderFields(
                 FieldContent::make('tier-status')
-                    ->withLabel('✨ TIER')
-                    ->withValue('VIP ACCESS'),
-                FieldContent::make('gate-info')
-                    ->withLabel('🚪 GATE')
-                    ->withValue('MAIN ENTRANCE')
+                    ->withLabel('NIVEL')
+                    ->withValue('ACCESO VIP')
             )
-            // PRIMARY FIELD - Título principal grande
+            // PRIMARY FIELD - Título del evento (principal y grande)
             ->setPrimaryFields(
                 FieldContent::make('event-title')
-                    ->withLabel('🎯 EVENT')
+                    ->withLabel('EVENTO')
                     ->withValue($this->formatearTituloEvento($validated['nombre']))
             )
-            // SECONDARY FIELDS - Información importante
+            // SECONDARY FIELDS - Nom i cognoms a la izquierda, fecha y hora a la derecha
             ->setSecondaryFields(
-                FieldContent::make('event-date')
-                    ->withLabel('📅 DATE')
-                    ->withValue($fechaFormateada),
-                FieldContent::make('event-time')
-                    ->withLabel('🕐 TIME')
-                    ->withValue($horaFormateada),
-                FieldContent::make('doors-open')
-                    ->withLabel('🔓 DOORS')
-                    ->withValue($this->calcularHoraPuertas($validated['hora']))
+                FieldContent::make('attendee-name')
+                    ->withLabel('NOMBRE Y APELLIDOS')
+                    ->withValue('MARC LOPEZ MARCO'),
+                FieldContent::make('event-datetime')
+                    ->withLabel('FECHA Y HORA')
+                    ->withValue($fechaFormateada . ' - ' . $horaFormateada)
             )
-            // AUXILIARY FIELDS - Información adicional
+            // AUXILIARY FIELDS - Lloc
             ->setAuxiliaryFields(
                 FieldContent::make('venue-name')
-                    ->withLabel('📍 VENUE')
-                    ->withValue($this->formatearVenue($validated['lugar'])),
-                FieldContent::make('ticket-id')
-                    ->withLabel('🎫 ID')
-                    ->withValue($serialNumber)
+                    ->withLabel('LUGAR')
+                    ->withValue($this->formatearVenue($validated['lugar']))
             )
             // BACK FIELDS - Información del reverso
             ->setBackFields(
                 FieldContent::make('event-overview')
-                    ->withLabel('📋 Event Overview')
+                    ->withLabel('Descripción del Evento')
                     ->withValue($validated['descripcion']),
 
                 FieldContent::make('event-schedule')
-                    ->withLabel('⏰ Event Schedule')
+                    ->withLabel('Horario del Evento')
                     ->withValue($this->generarHorarioEvento($validated['fecha'], $validated['hora'])),
 
                 FieldContent::make('venue-details')
-                    ->withLabel('🏢 Venue Information')
+                    ->withLabel('Información del Lugar')
                     ->withValue($this->generarDetallesVenue($validated['lugar'])),
 
                 FieldContent::make('access-instructions')
-                    ->withLabel('🎯 Access Instructions')
+                    ->withLabel('Instrucciones de Acceso')
                     ->withValue($this->generarInstruccionesAcceso($accessCode)),
 
                 FieldContent::make('networking-info')
-                    ->withLabel('🤝 Networking & Benefits')
+                    ->withLabel('Networking y Beneficios')
                     ->withValue($this->generarBeneficios()),
 
                 FieldContent::make('event-highlights')
-                    ->withLabel('⭐ Event Highlights')
+                    ->withLabel('Destacados del Evento')
                     ->withValue($this->generarDestacados()),
 
                 FieldContent::make('contact-support')
-                    ->withLabel('📞 Event Support')
+                    ->withLabel('Soporte del Evento')
                     ->withValue($this->generarSoporte()),
 
                 FieldContent::make('terms-conditions')
-                    ->withLabel('📜 Terms & Conditions')
+                    ->withLabel('Términos y Condiciones')
                     ->withValue($this->generarTerminos()),
 
                 FieldContent::make('social-media')
-                    ->withLabel('📱 Connect With Us')
+                    ->withLabel('Conéctate con Nosotros')
                     ->withValue($this->generarRedesSociales($validated['nombre']))
             )
-            // IMÁGENES PREMIUM
+            // IMÁGENES ESTÁTICAS
             ->setIconImage(
                 Image::make(
                     x1Path: public_path('images/icons/icon.png'),
@@ -167,9 +164,9 @@ class WalletPassController extends Controller
     }
 
     /**
-     * Generar imágenes premium para el pase
+     * Crear imágenes estáticas si no existen
      */
-    private function generarImagenesPremium()
+    private function crearImagenesEstaticasSiNoExisten()
     {
         // Crear directorio si no existe
         $premiumDir = public_path('images/premium');
@@ -177,25 +174,34 @@ class WalletPassController extends Controller
             mkdir($premiumDir, 0755, true);
         }
 
-        // Generar logo premium
-        $this->generarLogoPremium();
+        $iconsDir = public_path('images/icons');
+        if (!file_exists($iconsDir)) {
+            mkdir($iconsDir, 0755, true);
+        }
 
-        // Generar fondo premium
-        $this->generarFondoPremium();
+        // Solo crear las imágenes si no existen
+        if (!file_exists(public_path('images/premium/logo.png'))) {
+            $this->generarLogoPremium();
+        }
 
-        // Generar strip premium
-        $this->generarStripPremium();
+        if (!file_exists(public_path('images/premium/background.png'))) {
+            $this->generarFondoPremium();
+        }
+
+        if (!file_exists(public_path('images/icons/icon.png'))) {
+            $this->generarIconoPremium();
+        }
     }
 
     /**
-     * Generar logo premium
+     * Generar logo premium alargado para ocupar todo el header
      */
     private function generarLogoPremium()
     {
         $logoSizes = [
-            ['width' => 160, 'height' => 50, 'suffix' => ''],
-            ['width' => 320, 'height' => 100, 'suffix' => '@2x'],
-            ['width' => 480, 'height' => 150, 'suffix' => '@3x']
+            ['width' => 320, 'height' => 50, 'suffix' => ''],   // Logo alargado
+            ['width' => 640, 'height' => 100, 'suffix' => '@2x'],
+            ['width' => 960, 'height' => 150, 'suffix' => '@3x']
         ];
 
         foreach ($logoSizes as $size) {
@@ -213,35 +219,46 @@ class WalletPassController extends Controller
 
             // Colores premium
             $white = imagecolorallocate($image, 255, 255, 255);
-            $premium = imagecolorallocate($image, 233, 69, 96); // Rosa premium
-            $gold = imagecolorallocate($image, 255, 215, 0); // Dorado
+            $red = imagecolorallocate($image, 192, 0, 1); // #c00001
+            $black = imagecolorallocate($image, 0, 0, 0);
 
-            // Crear diseño del logo
+            // Crear diseño del logo alargado - barra horizontal elegante
             $centerX = $width / 2;
             $centerY = $height / 2;
 
-            // Círculo de fondo
-            $circleRadius = min($width, $height) * 0.3;
-            imagefilledellipse($image, $centerX, $centerY, $circleRadius * 2, $circleRadius * 2, $premium);
+            // Barra principal horizontal
+            $barHeight = $height * 0.6;
+            $barY = $centerY - ($barHeight / 2);
 
-            // Borde dorado
-            imageellipse($image, $centerX, $centerY, $circleRadius * 2, $circleRadius * 2, $gold);
-            imageellipse($image, $centerX, $centerY, ($circleRadius * 2) - 2, ($circleRadius * 2) - 2, $gold);
+            // Fondo de la barra con gradiente horizontal
+            for ($x = 0; $x < $width; $x++) {
+                $ratio = $x / $width;
+                // Gradiente de rojo a rojo más oscuro
+                $r = (int)(192 * (1 - $ratio * 0.3));
+                $g = 0;
+                $b = (int)(1 * (1 + $ratio * 0.5));
 
-            // Texto "PE" (Premium Events)
-            $fontSize = $width * 0.08;
-            if (function_exists('imagettftext')) {
-                // Si tenemos fuentes TTF disponibles
-                $fontPath = public_path('fonts/arial.ttf');
-                if (file_exists($fontPath)) {
-                    imagettftext($image, $fontSize, 0, $centerX - ($fontSize * 0.6), $centerY + ($fontSize * 0.3), $white, $fontPath, 'PE');
-                } else {
-                    // Usar fuente built-in
-                    imagestring($image, 5, $centerX - 15, $centerY - 10, 'PE', $white);
-                }
-            } else {
-                imagestring($image, 5, $centerX - 15, $centerY - 10, 'PE', $white);
+                $gradientColor = imagecolorallocate($image, $r, $g, $b);
+                imagefilledrectangle($image, $x, $barY, $x + 1, $barY + $barHeight, $gradientColor);
             }
+
+            // Texto "PREMIUM EVENTS" centrado
+            $fontSize = $height * 0.25;
+            $text = "PREMIUM EVENTS";
+
+            // Calcular posición centrada del texto
+            $textWidth = strlen($text) * ($fontSize * 0.6);
+            $textX = $centerX - ($textWidth / 2);
+            $textY = $centerY + ($fontSize / 3);
+
+            // Sombra del texto
+            imagestring($image, 5, $textX + 1, $textY + 1, $text, $black);
+            // Texto principal
+            imagestring($image, 5, $textX, $textY, $text, $white);
+
+            // Bordes decorativos
+            imagerectangle($image, 10, $barY, $width - 10, $barY + $barHeight, $white);
+            imagerectangle($image, 8, $barY - 2, $width - 8, $barY + $barHeight + 2, $red);
 
             // Guardar imagen
             $filename = public_path("images/premium/logo{$suffix}.png");
@@ -251,7 +268,7 @@ class WalletPassController extends Controller
     }
 
     /**
-     * Generar fondo premium con gradiente
+     * Generar fondo premium con gradiente de blanco a #c00001
      */
     private function generarFondoPremium()
     {
@@ -268,25 +285,17 @@ class WalletPassController extends Controller
 
             $image = imagecreatetruecolor($width, $height);
 
-            // Crear gradiente premium (azul oscuro a negro)
+            // Crear gradiente vertical de blanco a #c00001
             for ($y = 0; $y < $height; $y++) {
                 $ratio = $y / $height;
 
-                // Colores del gradiente
-                $r = (int)(26 * (1 - $ratio) + 0 * $ratio); // De azul oscuro a negro
-                $g = (int)(26 * (1 - $ratio) + 0 * $ratio);
-                $b = (int)(46 * (1 - $ratio) + 0 * $ratio);
+                // Gradiente de blanco (255,255,255) a rojo (#c00001 = 192,0,1)
+                $r = (int)(255 * (1 - $ratio) + 192 * $ratio);
+                $g = (int)(255 * (1 - $ratio) + 0 * $ratio);
+                $b = (int)(255 * (1 - $ratio) + 1 * $ratio);
 
                 $color = imagecolorallocate($image, $r, $g, $b);
                 imageline($image, 0, $y, $width, $y, $color);
-            }
-
-            // Añadir patrón sutil
-            $patternColor = imagecolorallocatealpha($image, 255, 255, 255, 120);
-            for ($x = 0; $x < $width; $x += 20) {
-                for ($y = 0; $y < $height; $y += 20) {
-                    imagesetpixel($image, $x, $y, $patternColor);
-                }
             }
 
             // Guardar imagen
@@ -297,65 +306,62 @@ class WalletPassController extends Controller
     }
 
     /**
-     * Generar strip premium (banda central)
+     * Generar icono premium
      */
-    private function generarStripPremium()
+    private function generarIconoPremium()
     {
-        $stripSizes = [
-            ['width' => 375, 'height' => 123, 'suffix' => ''],
-            ['width' => 750, 'height' => 246, 'suffix' => '@2x'],
-            ['width' => 1125, 'height' => 369, 'suffix' => '@3x']
+        $iconSizes = [
+            ['width' => 58, 'height' => 58, 'suffix' => ''],
+            ['width' => 116, 'height' => 116, 'suffix' => '@2x'],
+            ['width' => 174, 'height' => 174, 'suffix' => '@3x']
         ];
 
-        foreach ($stripSizes as $size) {
+        foreach ($iconSizes as $size) {
             $width = $size['width'];
             $height = $size['height'];
             $suffix = $size['suffix'];
 
+            // Crear imagen con fondo transparente
             $image = imagecreatetruecolor($width, $height);
 
-            // Gradiente horizontal premium (rosa a azul)
-            for ($x = 0; $x < $width; $x++) {
-                $ratio = $x / $width;
+            // Hacer fondo transparente
+            imagesavealpha($image, true);
+            $transparent = imagecolorallocatealpha($image, 0, 0, 0, 127);
+            imagefill($image, 0, 0, $transparent);
 
-                // Gradiente de rosa premium a azul
-                $r = (int)(233 * (1 - $ratio) + 79 * $ratio);
-                $g = (int)(69 * (1 - $ratio) + 172 * $ratio);
-                $b = (int)(96 * (1 - $ratio) + 254 * $ratio);
+            // Colores premium
+            $white = imagecolorallocate($image, 255, 255, 255);
+            $red = imagecolorallocate($image, 192, 0, 1); // #c00001
 
-                $color = imagecolorallocate($image, $r, $g, $b);
-                imageline($image, $x, 0, $x, $height, $color);
-            }
+            // Crear diseño del icono - círculo simple
+            $centerX = $width / 2;
+            $centerY = $height / 2;
+            $radius = min($width, $height) * 0.4;
 
-            // Añadir overlay con patrón geométrico
-            $overlayColor = imagecolorallocatealpha($image, 255, 255, 255, 100);
-
-            // Patrón de líneas diagonales
-            for ($i = -$height; $i < $width; $i += 15) {
-                imageline($image, $i, 0, $i + $height, $height, $overlayColor);
-            }
+            imagefilledellipse($image, $centerX, $centerY, $radius * 2, $radius * 2, $red);
+            imageellipse($image, $centerX, $centerY, $radius * 2, $radius * 2, $white);
 
             // Guardar imagen
-            $filename = public_path("images/premium/strip{$suffix}.png");
+            $filename = public_path("images/icons/icon{$suffix}.png");
             imagepng($image, $filename);
             imagedestroy($image);
         }
     }
 
     /**
-     * Formatear fecha de forma moderna y elegante
+     * Formatear fecha de forma moderna y elegante en español
      */
     private function formatearFechaModerna($fecha)
     {
         $meses = [
-            1 => 'JAN', 2 => 'FEB', 3 => 'MAR', 4 => 'APR',
-            5 => 'MAY', 6 => 'JUN', 7 => 'JUL', 8 => 'AUG',
-            9 => 'SEP', 10 => 'OCT', 11 => 'NOV', 12 => 'DEC'
+            1 => 'ENE', 2 => 'FEB', 3 => 'MAR', 4 => 'ABR',
+            5 => 'MAY', 6 => 'JUN', 7 => 'JUL', 8 => 'AGO',
+            9 => 'SEP', 10 => 'OCT', 11 => 'NOV', 12 => 'DIC'
         ];
 
         $dias = [
-            'Monday' => 'MON', 'Tuesday' => 'TUE', 'Wednesday' => 'WED',
-            'Thursday' => 'THU', 'Friday' => 'FRI', 'Saturday' => 'SAT', 'Sunday' => 'SUN'
+            'Monday' => 'LUN', 'Tuesday' => 'MAR', 'Wednesday' => 'MIÉ',
+            'Thursday' => 'JUE', 'Friday' => 'VIE', 'Saturday' => 'SÁB', 'Sunday' => 'DOM'
         ];
 
         $fechaObj = \DateTime::createFromFormat('Y-m-d', $fecha);
@@ -367,12 +373,28 @@ class WalletPassController extends Controller
     }
 
     /**
-     * Formatear fecha completa para el reverso
+     * Formatear fecha completa para el reverso en español
      */
     private function formatearFechaCompleta($fecha)
     {
+        $mesesCompletos = [
+            1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril',
+            5 => 'mayo', 6 => 'junio', 7 => 'julio', 8 => 'agosto',
+            9 => 'septiembre', 10 => 'octubre', 11 => 'noviembre', 12 => 'diciembre'
+        ];
+
+        $diasCompletos = [
+            'Monday' => 'lunes', 'Tuesday' => 'martes', 'Wednesday' => 'miércoles',
+            'Thursday' => 'jueves', 'Friday' => 'viernes', 'Saturday' => 'sábado', 'Sunday' => 'domingo'
+        ];
+
         $fechaObj = \DateTime::createFromFormat('Y-m-d', $fecha);
-        return $fechaObj->format('l, F j, Y');
+        $dia = $fechaObj->format('j');
+        $mes = $mesesCompletos[(int)$fechaObj->format('n')];
+        $año = $fechaObj->format('Y');
+        $diaSemana = $diasCompletos[$fechaObj->format('l')];
+
+        return "{$diaSemana}, {$dia} de {$mes} de {$año}";
     }
 
     /**
@@ -440,7 +462,7 @@ class WalletPassController extends Controller
     }
 
     /**
-     * Generar horario detallado del evento
+     * Generar horario detallado del evento - Verano 2025
      */
     private function generarHorarioEvento($fecha, $hora)
     {
@@ -451,118 +473,132 @@ class WalletPassController extends Controller
         $horaFin = clone $horaInicio;
         $horaFin->modify('+4 hours');
 
-        return "📅 {$fechaCompleta}\n\n" .
-               "🚪 Doors Open: {$horaPuertas->format('H:i')}\n" .
-               "🎬 Event Starts: {$horaInicio->format('H:i')}\n" .
-               "🏁 Expected End: {$horaFin->format('H:i')}\n\n" .
-               "⏰ Please arrive 15-30 minutes early for check-in";
+        return "{$fechaCompleta}\n\n" .
+               "Apertura de puertas: {$horaPuertas->format('H:i')}\n" .
+               "Inicio del evento: {$horaInicio->format('H:i')}\n" .
+               "Finalización estimada: {$horaFin->format('H:i')}\n\n" .
+               "Por favor, llega 15-30 minutos antes para el registro de entrada\n\n" .
+               "FESTIVAL DE VERANO 2025\n" .
+               "La mejor experiencia del verano está aquí";
     }
 
     /**
-     * Generar detalles del venue
+     * Generar detalles del venue - Verano 2025
      */
     private function generarDetallesVenue($lugar)
     {
-        return "🏢 Venue: {$lugar}\n\n" .
-               "🚗 Parking: Available on-site\n" .
-               "🚇 Public Transport: Accessible via metro/bus\n" .
-               "♿ Accessibility: Full wheelchair access\n" .
-               "📶 WiFi: Complimentary high-speed internet\n" .
-               "🍽️ Catering: Premium refreshments included";
+        return "Lugar: {$lugar}\n\n" .
+               "Aparcamiento: Disponible en el recinto\n" .
+               "Transporte público: Accesible por metro y autobús\n" .
+               "Accesibilidad: Acceso completo para sillas de ruedas\n" .
+               "WiFi: Internet de alta velocidad gratuito\n" .
+               "Catering: Refrescos premium incluidos\n" .
+               "Zona chill-out: Área de descanso con sombra\n" .
+               "Temperaturas de verano: Se recomienda ropa ligera";
     }
 
     /**
-     * Generar instrucciones de acceso
+     * Generar instrucciones de acceso - Verano 2025
      */
     private function generarInstruccionesAcceso($accessCode)
     {
-        return "🎫 Present this digital pass at entrance\n" .
-               "📱 QR code contains encrypted access data\n" .
-               "🔑 Access Code: {$accessCode}\n\n" .
-               "⚠️ IMPORTANT:\n" .
-               "• Screenshots are NOT valid\n" .
-               "• Pass is non-transferable\n" .
-               "• Valid ID may be required\n" .
-               "• Lost passes can be recovered via email";
+        return "Presenta este pase digital en la entrada\n" .
+               "El código QR contiene datos de acceso encriptados\n" .
+               "Código de acceso: {$accessCode}\n\n" .
+               "IMPORTANTE:\n" .
+               "• Las capturas de pantalla NO son válidas\n" .
+               "• El pase no es transferible\n" .
+               "• Se puede requerir identificación válida\n" .
+               "• Los pases perdidos se pueden recuperar por email\n" .
+               "• Entrada válida solo para el Festival de Verano 2025";
     }
 
     /**
-     * Generar beneficios y networking
+     * Generar beneficios y networking - Verano 2025
      */
     private function generarBeneficios()
     {
-        return "🌟 VIP ACCESS INCLUDES:\n\n" .
-               "🥂 Welcome reception with premium catering\n" .
-               "🎁 Exclusive event merchandise\n" .
-               "📚 Digital resource pack & recordings\n" .
-               "🤝 Priority networking opportunities\n" .
-               "📸 Professional event photography\n" .
-               "🏆 Certificate of attendance\n" .
-               "💼 Access to speaker meet & greet";
+        return "EL ACCESO VIP INCLUYE:\n\n" .
+               "Recepción de bienvenida con catering premium\n" .
+               "Merchandising exclusivo del evento\n" .
+               "Pack digital de recursos y grabaciones\n" .
+               "Oportunidades prioritarias de networking\n" .
+               "Fotografía profesional del evento\n" .
+               "Certificado de asistencia\n" .
+               "Acceso a meet & greet con ponentes\n" .
+               "Área VIP con aire acondicionado\n" .
+               "Bebidas refrescantes ilimitadas";
     }
 
     /**
-     * Generar destacados del evento
+     * Generar destacados del evento - Festival Verano 2025
      */
     private function generarDestacados()
     {
-        return "⭐ FEATURED HIGHLIGHTS:\n\n" .
-               "🎤 Keynote presentations by industry leaders\n" .
-               "🛠️ Interactive workshops & hands-on sessions\n" .
-               "🚀 Product demos & live demonstrations\n" .
-               "🎯 Panel discussions with expert insights\n" .
-               "🏅 Innovation showcase & startup pitch\n" .
-               "🌐 Global networking with 500+ attendees\n" .
-               "📱 Mobile app with agenda & networking";
+        return "DESTACADOS PRINCIPALES:\n\n" .
+               "Conferencias magistrales de líderes de la industria\n" .
+               "Talleres interactivos y sesiones prácticas\n" .
+               "Demostraciones de productos en vivo\n" .
+               "Mesas redondas con expertos reconocidos\n" .
+               "Escaparate de innovación y presentaciones de startups\n" .
+               "Networking global con más de 500 asistentes\n" .
+               "App móvil con agenda y funciones de networking\n" .
+               "Zona de relajación con música chill-out\n" .
+               "Actividades especiales de verano al aire libre";
     }
 
     /**
-     * Generar información de soporte
+     * Generar información de soporte - Verano 2025
      */
     private function generarSoporte()
     {
-        return "📞 24/7 EVENT SUPPORT:\n\n" .
-               "📧 Email: support@premiumevents.com\n" .
-               "📱 WhatsApp: +34 900 123 456\n" .
-               "💬 Live Chat: Available on event app\n" .
-               "🏢 On-site: Information desk at main entrance\n\n" .
-               "🆘 EMERGENCY CONTACT:\n" .
-               "📞 Emergency Hotline: +34 900 999 000\n" .
-               "🚨 Available during event hours";
+        return "SOPORTE DEL EVENTO 24/7:\n\n" .
+               "Email: soporte@eventosverano2025.com\n" .
+               "WhatsApp: +34 900 123 456\n" .
+               "Chat en vivo: Disponible en la app del evento\n" .
+               "Presencial: Punto de información en entrada principal\n\n" .
+               "CONTACTO DE EMERGENCIA:\n" .
+               "Línea de emergencia: +34 900 999 000\n" .
+               "Disponible durante las horas del evento\n\n" .
+               "FESTIVAL DE VERANO 2025\n" .
+               "Tu bienestar es nuestra prioridad";
     }
 
     /**
-     * Generar términos y condiciones
+     * Generar términos y condiciones - Verano 2025
      */
     private function generarTerminos()
     {
-        return "📜 TERMS & CONDITIONS:\n\n" .
-               "• Ticket grants access to specified event only\n" .
-               "• Organizer reserves right to refuse entry\n" .
-               "• Photography/recording may occur during event\n" .
-               "• Outside food/beverages not permitted\n" .
-               "• Event schedule subject to change\n" .
-               "• No refunds for no-shows or early departure\n" .
-               "• Attendee assumes all risks of participation\n\n" .
-               "📋 Full terms available at:\n" .
-               "www.premiumevents.com/terms";
+        return "TÉRMINOS Y CONDICIONES:\n\n" .
+               "• El ticket otorga acceso únicamente al evento especificado\n" .
+               "• El organizador se reserva el derecho de rechazar la entrada\n" .
+               "• Pueden realizarse fotografías/grabaciones durante el evento\n" .
+               "• No se permite comida/bebida del exterior\n" .
+               "• El programa del evento puede cambiar sin previo aviso\n" .
+               "• No hay reembolsos por no presentarse o salir temprano\n" .
+               "• El asistente asume todos los riesgos de participación\n" .
+               "• Evento válido solo para Festival de Verano 2025\n\n" .
+               "Términos completos disponibles en:\n" .
+               "www.eventosverano2025.com/terminos";
     }
 
     /**
-     * Generar redes sociales
+     * Generar redes sociales - Verano 2025
      */
     private function generarRedesSociales($nombreEvento)
     {
-        $hashtag = '#' . str_replace([' ', '&', '-'], '', $nombreEvento) . '2024';
+        $hashtag = '#' . str_replace([' ', '&', '-'], '', $nombreEvento) . 'Verano2025';
 
-        return "📱 SHARE YOUR EXPERIENCE:\n\n" .
-               "📸 Official Hashtag: {$hashtag}\n" .
-               "🐦 Twitter: @PremiumEvents\n" .
-               "📘 Facebook: /PremiumEventsOfficial\n" .
-               "📷 Instagram: @premium_events\n" .
-               "💼 LinkedIn: /company/premium-events\n" .
-               "🎥 YouTube: /PremiumEventsChannel\n\n" .
-               "🏆 Tag us for a chance to be featured!";
+        return "COMPARTE TU EXPERIENCIA:\n\n" .
+               "Hashtag oficial: {$hashtag}\n" .
+               "Twitter: @EventosVerano2025\n" .
+               "Facebook: /EventosVerano2025Oficial\n" .
+               "Instagram: @eventos_verano_2025\n" .
+               "LinkedIn: /company/eventos-verano-2025\n" .
+               "YouTube: /EventosVeranoChannel\n" .
+               "TikTok: @eventosverano2025\n\n" .
+               "¡Etiquétanos para tener la oportunidad de aparecer destacado!\n" .
+               "¡Vive el verano de 2025 al máximo!";
     }
 
     /**
